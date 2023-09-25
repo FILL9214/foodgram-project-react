@@ -1,19 +1,17 @@
 from django.contrib.auth import get_user_model
 from django.core import validators
 from django.db import models
-from django.db.models.signals import post_save
-from django.dispatch import receiver
-
+from backend.constants import MAX_LENGTH
 User = get_user_model()
 
 
 class Ingredient(models.Model):
     name = models.CharField(
         'Название ингредиента',
-        max_length=200)
+        max_length=MAX_LENGTH)
     measurement_unit = models.CharField(
         'Единица измерения ингредиента',
-        max_length=200)
+        max_length=MAX_LENGTH)
 
     class Meta:
         ordering = ['name']
@@ -41,7 +39,7 @@ class Tag(models.Model):
     class Meta:
         verbose_name = 'Тэг'
         verbose_name_plural = 'Тэги'
-        ordering = ['-id']
+        ordering = ['name']
 
     def __str__(self):
         return self.name
@@ -55,7 +53,7 @@ class Recipe(models.Model):
         verbose_name='Автор')
     name = models.CharField(
         'Название рецепта',
-        max_length=255)
+        max_length=MAX_LENGTH)
     image = models.ImageField(
         'Изображение рецепта',
         upload_to='static/recipe/',
@@ -63,8 +61,6 @@ class Recipe(models.Model):
         null=True)
     text = models.TextField(
         'Описание рецепта')
-    cooking_time = models.BigIntegerField(
-        'Время приготовления рецепта')
     ingredients = models.ManyToManyField(
         Ingredient,
         through='RecipeIngredient')
@@ -163,12 +159,6 @@ class FavoriteRecipe(models.Model):
         list_ = [item['name'] for item in self.recipe.values('name')]
         return f'Пользователь {self.user} добавил {list_} в избранные.'
 
-    @receiver(post_save, sender=User)
-    def create_favorite_recipe(
-            sender, instance, created, **kwargs):
-        if created:
-            return FavoriteRecipe.objects.create(user=instance)
-
 
 class ShoppingCart(models.Model):
     user = models.OneToOneField(
@@ -190,9 +180,3 @@ class ShoppingCart(models.Model):
     def __str__(self):
         list_ = [item['name'] for item in self.recipe.values('name')]
         return f'Пользователь {self.user} добавил {list_} в покупки.'
-
-    @receiver(post_save, sender=User)
-    def create_shopping_cart(
-            sender, instance, created, **kwargs):
-        if created:
-            return ShoppingCart.objects.create(user=instance)
