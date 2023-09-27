@@ -118,5 +118,11 @@ REST_FRAMEWORK = {
     'PAGE_SIZE': 6,
 }
 DJOSER = {
-    'LOGIN-FIELD': 'email'
+    "HIDE_USERS": False,
+    'LOGIN-FIELD': 'email',
+    "SERIALIZERS": {
+        'user_create': 'api.serializers.UserListSerializer',
+        'user': 'api.serializers.UserListSerializer',
+        'current_user': 'api.serializers.UserListSerializer',
+    },
 }
