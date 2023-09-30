@@ -1,6 +1,4 @@
 import io
-
-from django.contrib.auth import get_user_model
 from django.contrib.auth.hashers import make_password
 from django.db.models.aggregates import Count, Sum
 from django.db.models.expressions import Exists, OuterRef, Value
@@ -13,42 +11,21 @@ from reportlab.pdfgen import canvas
 from django.conf import settings
 from rest_framework import generics, status, viewsets
 from rest_framework.decorators import action
-from rest_framework.permissions import (SAFE_METHODS, AllowAny,
+from rest_framework.permissions import (SAFE_METHODS,
                                         IsAuthenticated,
                                         IsAuthenticatedOrReadOnly)
 from rest_framework.response import Response
 
 from api.filters import IngredientFilter, RecipeFilter
-from api.permissions import IsAdminOrReadOnly
 from recipes.models import (FavoriteRecipe, Ingredient, Recipe, ShoppingCart,
-                            Subscribe, Tag)
+                            Subscribe, Tag, User)
 from .serializers import (IngredientSerializer, RecipeReadSerializer,
-                          RecipeWriteSerializer, SubscribeRecipeSerializer,
+                          RecipeWriteSerializer,
                           SubscribeSerializer, TagSerializer,
-                          UserCreateSerializer, UserListSerializer)
+                          UserListSerializer)
+from .mixins import PermissionAndPaginationMixin
 
-User = get_user_model()
 FILENAME = 'shoppingcart.pdf'
-
-
-class GetObjectMixin:
-    """Миксина для удаления/добавления рецептов избранных/корзины."""
-
-    serializer_class = SubscribeRecipeSerializer
-    permission_classes = (AllowAny,)
-
-    def get_object(self):
-        recipe_id = self.kwargs['recipe_id']
-        recipe = get_object_or_404(Recipe, id=recipe_id)
-        self.check_object_permissions(self.request, recipe)
-        return recipe
-
-
-class PermissionAndPaginationMixin:
-    """Миксина для списка тегов и ингридиентов."""
-
-    permission_classes = (IsAdminOrReadOnly,)
-    pagination_class = None
 
 
 class AddAndDeleteSubscribe(
@@ -91,38 +68,6 @@ class AddAndDeleteSubscribe(
         self.request.user.follower.filter(author=instance).delete()
 
 
-class AddDeleteFavoriteRecipe(
-        GetObjectMixin,
-        generics.RetrieveDestroyAPIView,
-        generics.ListCreateAPIView):
-    """Добавление и удаление рецепта в/из избранных."""
-
-    def create(self, request, *args, **kwargs):
-        instance = self.get_object()
-        request.user.favorite_recipe.recipe.add(instance)
-        serializer = self.get_serializer(instance)
-        return Response(serializer.data, status=status.HTTP_201_CREATED)
-
-    def perform_destroy(self, instance):
-        self.request.user.favorite_recipe.recipe.remove(instance)
-
-
-class AddDeleteShoppingCart(
-        GetObjectMixin,
-        generics.RetrieveDestroyAPIView,
-        generics.ListCreateAPIView):
-    """Добавление и удаление рецепта в/из корзины."""
-
-    def create(self, request, *args, **kwargs):
-        instance = self.get_object()
-        request.user.shopping_cart.recipe.add(instance)
-        serializer = self.get_serializer(instance)
-        return Response(serializer.data, status=status.HTTP_201_CREATED)
-
-    def perform_destroy(self, instance):
-        self.request.user.shopping_cart.recipe.remove(instance)
-
-
 class UsersViewSet(UserViewSet):
     """Пользователи."""
 
@@ -138,11 +83,6 @@ class UsersViewSet(UserViewSet):
                 'follower', 'following'
         ) if self.request.user.is_authenticated else User.objects.annotate(
             is_subscribed=Value(False))
-
-    def get_serializer_class(self):
-        if self.request.method.lower() == 'post':
-            return UserCreateSerializer
-        return UserListSerializer
 
     def perform_create(self, serializer):
         password = make_password(self.request.data['password'])
@@ -185,24 +125,53 @@ class RecipesViewSet(viewsets.ModelViewSet):
                     user=self.request.user,
                     recipe=OuterRef('id')))
         ).select_related('author').prefetch_related(
-            'tags', 'ingredients',
+            'tags', 'ingredients', 'recipe',
             'shopping_cart', 'favorite_recipe'
         ) if self.request.user.is_authenticated else Recipe.objects.annotate(
             is_in_shopping_cart=Value(False),
             is_favorited=Value(False),
         ).select_related('author').prefetch_related(
-            'tags', 'ingredients',
+            'tags', 'ingredients', 'recipe',
             'shopping_cart', 'favorite_recipe')
 
     def perform_create(self, serializer):
         serializer.save(author=self.request.user)
 
     @action(
-        detail=False,
-        methods=['get'],
+        detail=True,
+        methods=['post', 'delete'],
         permission_classes=(IsAuthenticated,))
-    def download_shopping_cart(self, request):
-        """Качаем список с ингредиентами."""
+    def favorite(self, request, *args, **kwargs):
+        instance = self.get_object()
+        if request.method == 'POST':
+            self.request.user.favorite_recipe.recipe.add(instance)
+            serializer = self.get_serializer(instance)
+            return Response(serializer.data, status=status.HTTP_201_CREATED)
+        if request.method == 'DELETE':
+            self.request.user.favorite_recipe.recipe.remove(instance)
+            return Response(
+                'Рецепт успешно удалён из избранного.',
+                status=status.HTTP_204_NO_CONTENT)
+
+    @action(
+            detail=True,
+            methods=['post', 'delete'],
+            permission_classes=(IsAuthenticated,))
+    def shopping_cart(self, request, *args, **kwargs):
+        instance = self.get_object()
+        if request.method == 'POST':
+            self.request.user.shopping_cart.recipe.add(instance)
+            serializer = self.get_serializer(instance)
+            return Response(serializer.data, status=status.HTTP_201_CREATED)
+        if request.method == 'DELETE':
+            self.request.user.shopping_cart.recipe.remove(instance)
+            return Response(
+                'Рецепт успешно удалён из списка покупок.',
+                status=status.HTTP_204_NO_CONTENT)
+
+    @staticmethod
+    def create_shopping_cart(request):
+        """Создаем список с ингредиентами."""
 
         buffer = io.BytesIO()
         page = canvas.Canvas(buffer)
@@ -241,6 +210,13 @@ class RecipesViewSet(viewsets.ModelViewSet):
         page.save()
         buffer.seek(0)
         return FileResponse(buffer, as_attachment=True, filename=FILENAME)
+
+    @action(
+        detail=False,
+        methods=['get'],
+        permission_classes=(IsAuthenticated,))
+    def download_shopping_cart(self, request):
+        return self.create_shopping_cart(request)
 
 
 class TagsViewSet(

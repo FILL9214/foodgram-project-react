@@ -1,11 +1,50 @@
-from django.contrib.auth import get_user_model
+from django.contrib.auth import authenticate, get_user_model
 from django.shortcuts import get_object_or_404
 from drf_base64.fields import Base64ImageField
 from rest_framework import serializers
 
-from recipes.models import Ingredient, Recipe, RecipeIngredient, Subscribe, Tag
+from recipes.models import (Ingredient,
+                            Recipe,
+                            RecipeIngredient,
+                            Subscribe,
+                            Tag,)
+
 User = get_user_model()
 ERR_MSG = 'Не удается войти в систему с предоставленными учетными данными.'
+
+
+class TokenSerializer(serializers.Serializer):
+    email = serializers.CharField(
+        label='Email',
+        write_only=True)
+    password = serializers.CharField(
+        label='Пароль',
+        style={'input_type': 'password'},
+        trim_whitespace=False,
+        write_only=True)
+    token = serializers.CharField(
+        label='Токен',
+        read_only=True)
+
+    def validate(self, attrs):
+        email = attrs.get('email')
+        password = attrs.get('password')
+        if email and password:
+            user = authenticate(
+                request=self.context.get('request'),
+                email=email,
+                password=password)
+            if not user:
+                raise serializers.ValidationError(
+                    ERR_MSG,
+                    code='authorization')
+        else:
+            msg = 'Необходимо указать "адрес электронной почты" и "пароль".'
+            raise serializers.ValidationError(
+                msg,
+                code='authorization')
+        attrs['user'] = user
+        return attrs
 
 
 class GetIsSubscribedMixin:
@@ -196,6 +235,7 @@ class SubscribeRecipeSerializer(serializers.ModelSerializer):
     class Meta:
         model = Recipe
         fields = ('id', 'name', 'image', 'cooking_time')
+        read_only_fields = ('id', 'name', 'image', 'cooking_time')
 
 
 class SubscribeSerializer(serializers.ModelSerializer):

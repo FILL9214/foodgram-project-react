@@ -2,6 +2,7 @@ from django.contrib.auth import get_user_model
 from django.core import validators
 from django.db import models
 from backend.constants import MAX_LENGTH
+
 User = get_user_model()
 
 
@@ -53,7 +54,7 @@ class Recipe(models.Model):
         verbose_name='Автор')
     name = models.CharField(
         'Название рецепта',
-        max_length=MAX_LENGTH)
+        max_length=255)
     image = models.ImageField(
         'Изображение рецепта',
         upload_to='static/recipe/',
@@ -87,7 +88,7 @@ class Recipe(models.Model):
 
 class RecipeIngredient(models.Model):
     recipe = models.ForeignKey(
-        Recipe,
+        'Recipe',
         on_delete=models.CASCADE,
         related_name='recipe')
     ingredient = models.ForeignKey(
@@ -139,43 +140,37 @@ class Subscribe(models.Model):
         return f'Пользователь {self.user} -> автор {self.author}'
 
 
-class FavoriteRecipe(models.Model):
+class BaseModel(models.Model):
     user = models.OneToOneField(
         User,
         on_delete=models.CASCADE,
-        null=True,
-        related_name='favorite_recipe',
-        verbose_name='Пользователь')
+        null=True,)
     recipe = models.ManyToManyField(
-        Recipe,
-        related_name='favorite_recipe',
-        verbose_name='Избранный рецепт')
+        Recipe,)
+
+    class Meta:
+        abstract = True
+
+
+class FavoriteRecipe(BaseModel):
 
     class Meta:
         verbose_name = 'Избранный рецепт'
         verbose_name_plural = 'Избранные рецепты'
+        default_related_name = 'favorite_recipe'
 
     def __str__(self):
         list_ = [item['name'] for item in self.recipe.values('name')]
         return f'Пользователь {self.user} добавил {list_} в избранные.'
 
 
-class ShoppingCart(models.Model):
-    user = models.OneToOneField(
-        User,
-        on_delete=models.CASCADE,
-        related_name='shopping_cart',
-        null=True,
-        verbose_name='Пользователь')
-    recipe = models.ManyToManyField(
-        Recipe,
-        related_name='shopping_cart',
-        verbose_name='Покупка')
+class ShoppingCart(BaseModel):
 
     class Meta:
         verbose_name = 'Покупка'
         verbose_name_plural = 'Покупки'
         ordering = ['-id']
+        default_related_name = 'shopping_cart'
 
     def __str__(self):
         list_ = [item['name'] for item in self.recipe.values('name')]
