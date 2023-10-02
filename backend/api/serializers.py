@@ -2,11 +2,13 @@ from django.shortcuts import get_object_or_404
 from drf_base64.fields import Base64ImageField
 from rest_framework import serializers, status
 from rest_framework.response import Response
-from recipes.models import (Ingredient,
-                            Recipe,
-                            RecipeIngredient,
-                            Subscribe,
-                            Tag, User)
+from recipes.models import (
+    Ingredient,
+    Recipe,
+    RecipeIngredient,
+    Subscribe,
+    Tag,
+    User)
 
 ERR_MSG = 'Не удается войти в систему с предоставленными учетными данными.'
 
