@@ -102,9 +102,9 @@ class RecipeIngredient(models.Model):
         default=1,
         validators=(validators.MinValueValidator(
             1, message='Мин. количество ингредиентов 1'),
-                    validators.MaxValueValidator(
-                        2,
-                        message='Макс. количество ингредиентов 2')),
+            validators.MaxValueValidator(
+                2,
+                message='Макс. количество ингредиентов 2')),
         verbose_name='Количество',)
 
     class Meta:
