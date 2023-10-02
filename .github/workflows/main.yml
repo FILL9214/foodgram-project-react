@@ -90,6 +90,7 @@ jobs:
     steps:
     - name: Checkout repo
       uses: actions/checkout@v3
+
       uses: appleboy/scp-action@master
       with:
         host: ${{ secrets.HOST }}
