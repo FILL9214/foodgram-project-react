@@ -1,8 +1,8 @@
-from api.permissions import IsAdminOrReadOnly
+from .permissions import IsAuthorOrReadOnly
 
 
 class PermissionAndPaginationMixin:
     """Миксина для списка тегов и ингридиентов."""
 
-    permission_classes = (IsAdminOrReadOnly,)
+    permission_classes = (IsAuthorOrReadOnly,)
     pagination_class = None

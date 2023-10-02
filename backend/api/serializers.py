@@ -1,50 +1,14 @@
-from django.contrib.auth import authenticate, get_user_model
 from django.shortcuts import get_object_or_404
 from drf_base64.fields import Base64ImageField
-from rest_framework import serializers
-
+from rest_framework import serializers, status
+from rest_framework.response import Response
 from recipes.models import (Ingredient,
                             Recipe,
                             RecipeIngredient,
                             Subscribe,
-                            Tag,)
+                            Tag, User)
 
-User = get_user_model()
 ERR_MSG = 'Не удается войти в систему с предоставленными учетными данными.'
-
-
-class TokenSerializer(serializers.Serializer):
-    email = serializers.CharField(
-        label='Email',
-        write_only=True)
-    password = serializers.CharField(
-        label='Пароль',
-        style={'input_type': 'password'},
-        trim_whitespace=False,
-        write_only=True)
-    token = serializers.CharField(
-        label='Токен',
-        read_only=True)
-
-    def validate(self, attrs):
-        email = attrs.get('email')
-        password = attrs.get('password')
-        if email and password:
-            user = authenticate(
-                request=self.context.get('request'),
-                email=email,
-                password=password)
-            if not user:
-                raise serializers.ValidationError(
-                    ERR_MSG,
-                    code='authorization')
-        else:
-            msg = 'Необходимо указать "адрес электронной почты" и "пароль".'
-            raise serializers.ValidationError(
-                msg,
-                code='authorization')
-        attrs['user'] = user
-        return attrs
 
 
 class GetIsSubscribedMixin:
@@ -97,20 +61,6 @@ class RecipeIngredientSerializer(serializers.ModelSerializer):
         model = RecipeIngredient
         fields = (
             'id', 'name', 'measurement_unit', 'amount')
-
-
-class RecipeUserSerializer(
-        GetIsSubscribedMixin,
-        serializers.ModelSerializer):
-
-    is_subscribed = serializers.SerializerMethodField(
-        read_only=True)
-
-    class Meta:
-        model = User
-        fields = (
-            'email', 'id', 'username',
-            'first_name', 'last_name', 'is_subscribed')
 
 
 class IngredientsEditSerializer(serializers.ModelSerializer):
@@ -213,7 +163,7 @@ class RecipeReadSerializer(serializers.ModelSerializer):
     tags = TagSerializer(
         many=True,
         read_only=True)
-    author = RecipeUserSerializer(
+    author = UserListSerializer(
         read_only=True,
         default=serializers.CurrentUserDefault())
     ingredients = RecipeIngredientSerializer(
@@ -270,3 +220,14 @@ class SubscribeSerializer(serializers.ModelSerializer):
         return SubscribeRecipeSerializer(
             recipes,
             many=True).data
+
+    def create(self, request, *args, **kwargs):
+        instance = self.get_object()
+        if request.user.id == instance.id:
+            return Response(
+                {'errors': 'На самого себя не подписаться!'},
+                status=status.HTTP_400_BAD_REQUEST)
+        if request.user.follower.filter(author=instance).exists():
+            return Response(
+                {'errors': 'Уже подписан!'},
+                status=status.HTTP_400_BAD_REQUEST)
