@@ -5,6 +5,8 @@ from django.db.models.expressions import Exists, OuterRef, Value
 from django.http import FileResponse
 from django.shortcuts import get_object_or_404
 from djoser.views import UserViewSet
+from django.db.models.signals import post_save
+from django.dispatch import receiver
 from reportlab.pdfbase import pdfmetrics
 from reportlab.pdfbase.ttfonts import TTFont
 from reportlab.pdfgen import canvas
@@ -23,7 +25,7 @@ from .serializers import (IngredientSerializer, RecipeReadSerializer,
                           RecipeWriteSerializer,
                           SubscribeSerializer, TagSerializer,
                           UserListSerializer)
-from .mixins import PermissionAndPaginationMixin
+from .mixins import PermissionAndPaginationMixin, GetObjectMixin
 
 FILENAME = 'shoppingcart.pdf'
 
@@ -58,6 +60,38 @@ class AddAndDeleteSubscribe(
 
     def perform_destroy(self, instance):
         self.request.user.follower.filter(author=instance).delete()
+
+
+class AddDeleteFavoriteRecipe(
+        GetObjectMixin,
+        generics.RetrieveDestroyAPIView,
+        generics.ListCreateAPIView):
+    """Добавление и удаление рецепта в/из избранных."""
+
+    def create(self, request, *args, **kwargs):
+        instance = self.get_object()
+        request.user.favorite_recipe.recipe.add(instance)
+        serializer = self.get_serializer(instance)
+        return Response(serializer.data, status=status.HTTP_201_CREATED)
+
+    def perform_destroy(self, instance):
+        self.request.user.favorite_recipe.recipe.remove(instance)
+
+
+class AddDeleteShoppingCart(
+        GetObjectMixin,
+        generics.RetrieveDestroyAPIView,
+        generics.ListCreateAPIView):
+    """Добавление и удаление рецепта в/из корзины."""
+
+    def create(self, request, *args, **kwargs):
+        instance = self.get_object()
+        request.user.shopping_cart.recipe.add(instance)
+        serializer = self.get_serializer(instance)
+        return Response(serializer.data, status=status.HTTP_201_CREATED)
+
+    def perform_destroy(self, instance):
+        self.request.user.shopping_cart.recipe.remove(instance)
 
 
 class UsersViewSet(UserViewSet):
@@ -117,48 +151,29 @@ class RecipesViewSet(viewsets.ModelViewSet):
                     user=self.request.user,
                     recipe=OuterRef('id')))
         ).select_related('author').prefetch_related(
-            'tags', 'ingredients', 'recipe',
+            'tags', 'ingredients',
             'shopping_cart', 'favorite_recipe'
         ) if self.request.user.is_authenticated else Recipe.objects.annotate(
             is_in_shopping_cart=Value(False),
             is_favorited=Value(False),
         ).select_related('author').prefetch_related(
-            'tags', 'ingredients', 'recipe',
+            'tags', 'ingredients',
             'shopping_cart', 'favorite_recipe')
 
     def perform_create(self, serializer):
         serializer.save(author=self.request.user)
 
-    @action(
-        detail=True,
-        methods=['post', 'delete'],
-        permission_classes=(IsAuthenticated,))
-    def favorite(self, request, *args, **kwargs):
-        instance = self.get_object()
-        if request.method == 'POST':
-            self.request.user.favorite_recipe.recipe.add(instance)
-            serializer = self.get_serializer(instance)
-            return Response(serializer.data, status=status.HTTP_201_CREATED)
-        if request.method == 'DELETE':
-            self.request.user.favorite_recipe.recipe.remove(instance)
-            return Response(
-                'Рецепт успешно удалён из избранного.',
-                status=status.HTTP_204_NO_CONTENT)
+    @receiver(post_save, sender=User)
+    def create_favorite_recipe(
+            sender, instance, created, **kwargs):
+        if created:
+            return FavoriteRecipe.objects.create(user=instance)
 
-    @action(detail=True,
-            methods=['post', 'delete'],
-            permission_classes=(IsAuthenticated,))
-    def shopping_cart(self, request, *args, **kwargs):
-        instance = self.get_object()
-        if request.method == 'POST':
-            self.request.user.shopping_cart.recipe.add(instance)
-            serializer = self.get_serializer(instance)
-            return Response(serializer.data, status=status.HTTP_201_CREATED)
-        if request.method == 'DELETE':
-            self.request.user.shopping_cart.recipe.remove(instance)
-            return Response(
-                'Рецепт успешно удалён из списка покупок.',
-                status=status.HTTP_204_NO_CONTENT)
+    @receiver(post_save, sender=User)
+    def create_shopping_cart(
+            sender, instance, created, **kwargs):
+        if created:
+            return ShoppingCart.objects.create(user=instance)
 
     @staticmethod
     def create_shopping_cart(request):
