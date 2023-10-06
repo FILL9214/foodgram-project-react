@@ -71,7 +71,7 @@ Password: 1992Fill
 Имя: Сергей
 Фамилия: Есенин
 Имя пользователя: SERGE
-E-mail: 
+E-mail: serge.98008548@rambler.ru
 Password: 123
 ```
 ### Пользователь №2
@@ -79,7 +79,7 @@ Password: 123
 Имя: Пётр
 Фамилия: Чайковский
 Имя пользователя: PETR
-E-mail: 
+E-mail: petr.tchaikovskiy@yandex.ru
 Password: 123
 ```
 ### Пользователь №3
@@ -87,7 +87,7 @@ Password: 123
 Имя: Александр
 Фамилия: Невский
 Имя пользователя: ALEX
-E-mail: 
+E-mail: nevskiy.alex234124@mail.ru
 Password: 123
 ```
 ###
