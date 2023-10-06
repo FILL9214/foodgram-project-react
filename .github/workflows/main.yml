@@ -108,7 +108,7 @@ jobs:
           sudo docker compose -f docker-compose.production.yml exec backend python manage.py migrate
           sudo docker compose -f docker-compose.production.yml exec backend python manage.py collectstatic
           sudo docker compose -f docker-compose.production.yml exec backend python manage.py load_ingrs
-          sudo docker compose -f docker-compose.yml exec backend cp -r /code/static/. /static/                    
+          sudo docker compose -f docker-compose.production.yml exec backend cp -r /code/static/. /static/                    
   send_message:
     runs-on: ubuntu-latest
     needs: deploy
