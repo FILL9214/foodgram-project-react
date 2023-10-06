@@ -55,10 +55,11 @@ docker-compose exec backend python manage.py load_tags
 docker-compose exec backend python manage.py load_ingrs
 ```
 
-### Документация к API доступна после запуска
+## Доменное имя и ip-адрес сервера
 
-```url
-http://127.0.0.1/api/docs/
+```
+URL: http://foodgram-fill.myddns.me
+IP: 62.84.123.36
 ```
 ## Пользователи
 ### Админ
